@@ -1,4 +1,6 @@
 import json
+from datetime import datetime
+import time
 
 class JsonDbConn:
 
@@ -52,12 +54,54 @@ class JsonDbConn:
     @read_decorator
     def lookup(self, hash: str) -> dict:
         """Returns the data associated with the key hash."""
-        return self._data[hash]
+        if hash in self._data:
+            return self._data[hash]
+        return {}
 
+class ResumeHashEntry:
 
+    db = JsonDbConn()
+
+    genres_map = {  # Keys are input string, values are the finite set of recognized genre labels. I.e. inputs --manyToOne--> labels
+                     "lfa": "lfa",  # TODO refactor to support verbose labels while keeping this repo public-GH safe
+                     "swe": "swe",
+                    "lfnp": "lfnp"
+    }
+
+    def __init__(self, hash: str=None, date: str=None, genre: str=None, notes: str=None):
+        data = self.db.lookup(hash)
+        if not data:
+            self.hash = self._create_hash_label()
+            self.date = self._get_datestamp()
+            self.genre = self._validate_genre(genre)
+            self.notes = notes
+            self.db.create_hash(self.hash, self.date, self.genre, self.notes)
+        else:
+            self.hash = hash
+            self.date = data["date"]
+            self.genre = data["genre"]
+            self.notes = data["notes"]
+
+    def _create_hash_label(self) -> str:
+        return hex(hash(time.time()))[2:]  # Slice off "0x"
+
+    def _get_datestamp(self, hard_coded_date: str=None) -> str:
+        if hard_coded_date:
+            raise NotImplementedError
+        date_obj = datetime.date(datetime.now())
+        return date_obj.strftime("%Y-%m-%d")
+
+    def _validate_genre(self, genre_input: str) -> str:
+        """Returns input string suitable for use as the genre label if possible
+        to suitably create from genre_input, else the emtpy string."""
+        genre_input = genre_input.lower()
+        if genre_input in self.genres_map:
+            return self.genres_map[genre_input]
+        return ''
 
 def main():
-    pass
+    x = ResumeHashEntry()
+    print(f"{x.hash=} {x.date=}")
 
 if __name__ == "__main__":
     main()
