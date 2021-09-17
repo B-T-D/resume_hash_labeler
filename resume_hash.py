@@ -117,15 +117,39 @@ class ResumeHashHelperCLI:  # Singleton
         usage=usage_message,
     )
 
-    def __init__(self, command_line_args: str):
-        self._main()
+    # TODO if directly interacting with sys.argv this much, what value is argparse even adding?
+    if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):  # TODO argparse mess. Intent is make command optional without requiring its syntax to be "--command <actual command". Syntax should be just actual command, or else nothing if no command.
+        parser.add_argument('command', help="Optional subcommand to run")
+    args = parser.parse_args()
 
-    def _main(self):
-        rhe_obj = ResumeHashEntry()  # TODO args
-        print(f"{rhe_obj.hash}")
+    def __init__(self, command_line_args: str=None):
+        if not hasattr(self.args, "command"):
+            self.new()
+
+    def new(self) -> None:
+        """Creates a new RH and prints it to the command line."""
+        subparser = argparse.ArgumentParser()  # Sub-parser for sub-arguments to this sub-command
+        subparser.add_argument('-m')
+        date = genre = notes = None
+        self._get_rhe_object(date=date, genre=genre, notes=notes)
+        print(self._rhe_obj.hash)
+
+    def lookup(self):
+        pass
+
+    def _get_rhe_object(self,
+                        hash: str=None,
+                        date: str=None,
+                        genre: str=None,
+                        notes: str=None):
+        self._rhe_obj = None
+        if hash:
+            self._rhe_obj = ResumeHashEntry(hash)
+        else:
+            self._rhe_obj = ResumeHashEntry(date=date, genre=genre, notes=notes)
 
 def main():
-    ResumeHashHelperCLI(sys.argv)
+    ResumeHashHelperCLI()
 
 if __name__ == "__main__":
     main()
