@@ -1,6 +1,8 @@
 import json
 from datetime import datetime
 import time
+import argparse
+import sys
 
 class JsonDbConn:
 
@@ -104,9 +106,26 @@ class ResumeHashEntry:
             return ''
         return self.genres_map[genre_input.lower()]
 
+class ResumeHashHelperCLI:  # Singleton
+
+    usage_message = \
+        """
+        Usage message here
+        """
+
+    parser = argparse.ArgumentParser(
+        usage=usage_message,
+    )
+
+    def __init__(self, command_line_args: str):
+        self._main()
+
+    def _main(self):
+        rhe_obj = ResumeHashEntry()  # TODO args
+        print(f"{rhe_obj.hash}")
+
 def main():
-    x = ResumeHashEntry()
-    print(f"{x.hash=} {x.date=}")
+    ResumeHashHelperCLI(sys.argv)
 
 if __name__ == "__main__":
     main()
