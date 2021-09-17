@@ -58,6 +58,12 @@ class JsonDbConn:
             return self._data[hash]
         return {}
 
+    @read_decorator
+    @write_decorator
+    def delete(self, hash: str) -> None:
+        if hash in self._data:
+            del self._data[hash]
+
 class ResumeHashEntry:
 
     db = JsonDbConn()
@@ -72,7 +78,7 @@ class ResumeHashEntry:
         data = self.db.lookup(hash)
         if not data:
             self.hash = self._create_hash_label()
-            self.date = self._get_datestamp()
+            self.date = self._get_datestamp(date)
             self.genre = self._validate_genre(genre)
             self.notes = notes
             self.db.create_hash(self.hash, self.date, self.genre, self.notes)
@@ -91,13 +97,12 @@ class ResumeHashEntry:
         date_obj = datetime.date(datetime.now())
         return date_obj.strftime("%Y-%m-%d")
 
-    def _validate_genre(self, genre_input: str) -> str:
+    def _validate_genre(self, genre_input: str=None) -> str:
         """Returns input string suitable for use as the genre label if possible
         to suitably create from genre_input, else the emtpy string."""
-        genre_input = genre_input.lower()
-        if genre_input in self.genres_map:
-            return self.genres_map[genre_input]
-        return ''
+        if not genre_input or not genre_input.lower() in self.genres_map:
+            return ''
+        return self.genres_map[genre_input.lower()]
 
 def main():
     x = ResumeHashEntry()
