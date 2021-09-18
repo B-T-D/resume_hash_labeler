@@ -1,7 +1,4 @@
-# resume_hash_labeler
-
-
-### Desired command line syntax
+### Command line syntax
 
 * Generate new hash label and print it to command line:
 
