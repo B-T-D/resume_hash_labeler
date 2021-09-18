@@ -20,7 +20,10 @@ class JsonDbConn:
             json_data = {}
             self.initialize_datafile_if_not_exists()
             with open(self._datafile, 'r') as fobj:
-                json_data = json.load(fobj)
+                try:
+                    json_data = json.load(fobj)
+                except json.decoder.JSONDecodeError: # If it was a new file, initialize to blank dict
+                    json_data = {}
                 fobj.seek(0)
             for key in json_data:
                 self._data[key] = json_data[key]
@@ -108,6 +111,8 @@ class ResumeHashEntry:
 
 class ResumeHashHelperCLI:  # Singleton
 
+    print(f"{sys.argv=}")
+
     usage_message = \
         """
         Usage message here
@@ -117,21 +122,47 @@ class ResumeHashHelperCLI:  # Singleton
         usage=usage_message,
     )
 
-    # TODO if directly interacting with sys.argv this much, what value is argparse even adding?
-    if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):  # TODO argparse mess. Intent is make command optional without requiring its syntax to be "--command <actual command". Syntax should be just actual command, or else nothing if no command.
-        parser.add_argument('command', help="Optional subcommand to run")
-    args = parser.parse_args()
+
+
+    print(f"{parser=}")
+
+
+    has_command = len(sys.argv) > 1 and not sys.argv[1].startswith("-")
+    if has_command:parser.add_argument("command", default="new",
+                        help="Optional subcommand to run")
+    # has_flags = (len(sys.argv) > 1 and sys.argv[1].startswith("-")) or (len(sys.argv) > 2)
+    #
+    # if has_command:
+    #     parser.add_argument('command', help="Optional subcommand to run")
+    # if has_flags:
+    #     if has_command:
+    #         args=[]
+    #     start = 1  # Index in sys.argv that would be the start of a slice containing all non-command args
+    #     if has_command:
+    #         start = 2
+
+    parser.add_argument("-g")  # action defaults to "store", i.e. store the value
+    parser.add_argument("-n")
+
+    args = parser.parse_args()  # TODO can always give a custom list of strings as arg to parse_args() if slicing sys.argv is too confusing
+
+    if not has_command:
+        setattr(args, "command", "new")
 
     def __init__(self, command_line_args: str=None):
+        print(f"{self.args=}")
         if not hasattr(self.args, "command"):
-            self.new()
+            raise ValueError("Unrecognized command")
+        getattr(self, self.args.command)()  # Calling the method returned by getattr()
 
     def new(self) -> None:
         """Creates a new RH and prints it to the command line."""
-        subparser = argparse.ArgumentParser()  # Sub-parser for sub-arguments to this sub-command
-        subparser.add_argument('-m')
         date = genre = notes = None
-        self._get_rhe_object(date=date, genre=genre, notes=notes)
+        if self.args.g is not None:
+            genre = self.args.g
+        if self.args.n is not None:
+            notes = self.args.n
+        self._get_rhe_object(date=date, genre=genre, notes=notes)  # TODO prompt if  the genre isn't recognize, allow retry
         print(self._rhe_obj.hash)
 
     def lookup(self):
@@ -146,9 +177,11 @@ class ResumeHashHelperCLI:  # Singleton
         if hash:
             self._rhe_obj = ResumeHashEntry(hash)
         else:
+            print(f"calling RHE constructor with {genre=}")
             self._rhe_obj = ResumeHashEntry(date=date, genre=genre, notes=notes)
 
 def main():
+    print(f"{sys.argv=}")
     ResumeHashHelperCLI()
 
 if __name__ == "__main__":
