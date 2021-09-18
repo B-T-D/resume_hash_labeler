@@ -4,6 +4,8 @@ import time
 import argparse
 import sys
 
+CONFIG_FILENAME = "config.json"
+
 class JsonDbConn:
 
     DEFAULT_JSON_FILENAME = "resume_hash_labels.json"
@@ -46,9 +48,10 @@ class JsonDbConn:
 
     @read_decorator
     @write_decorator
-    def create_hash(self, hash: str, date: str, genre: str, notes: str):
-        if not hash in self._data:
-            self._data[hash] = {
+    def create(self, id: str, date: str, genre: str, notes: str):
+        print(f"in db create():\n{id=} {date=} {genre=} {notes=}")
+        if not id in self._data:
+            self._data[id] = {
                 "date": date,
                 "genre": genre,
                 "notes": notes
@@ -64,6 +67,11 @@ class JsonDbConn:
         return {}
 
     @read_decorator
+    def all_objects(self) -> dict:
+        """Returns a dict of all objects in the database."""
+        return self._data
+
+    @read_decorator
     @write_decorator
     def delete(self, hash: str) -> None:
         if hash in self._data:
@@ -71,34 +79,33 @@ class JsonDbConn:
 
 class ResumeHashEntry:
 
-    db = JsonDbConn()
+    with open(CONFIG_FILENAME) as fobj:
+        config_data = json.load(fobj)
+    genres_map = config_data["genres"]
+    resume_owner_name = config_data["name"]
+    file_extension = config_data["default_file_extension"]
 
-    genres_map = {  # Keys are input string, values are the finite set of recognized genre labels. I.e. inputs --manyToOne--> labels
-                     "lfa": "lfa",  # TODO refactor to support verbose labels while keeping this repo public-GH safe
-                     "swe": "swe",
-                    "lfnp": "lfnp"
-    }
 
-    def __init__(self, hash: str=None, date: str=None, genre: str=None, notes: str=None):
-        data = self.db.lookup(hash)
-        if not data:
-            self.hash = self._create_hash_label()
+    def __init__(self, id: str=None, date: str=None, genre: str=None, notes: str=None):
+        if not id:
+            self.id = self._create_hash_label()
             self.date = self._get_datestamp(date)
             self.genre = self._validate_genre(genre)
             self.notes = notes
-            self.db.create_hash(self.hash, self.date, self.genre, self.notes)
         else:
-            self.hash = hash
-            self.date = data["date"]
-            self.genre = data["genre"]
-            self.notes = data["notes"]
+            self.id = id
+            self.date = date
+            self.genre = genre
+            self.notes = notes
+
+    @property
+    def filename(self):
+        return f"{self.resume_owner_name}_resume_{self.id}.{self.file_extension}"
 
     def _create_hash_label(self) -> str:
-        return hex(hash(time.time()))[2:]  # Slice off "0x"
+        return hex(hash(time.time()))[2:8]  # Slice off "0x" and limit to 6 chars total
 
     def _get_datestamp(self, hard_coded_date: str=None) -> str:
-        if hard_coded_date:
-            raise NotImplementedError
         date_obj = datetime.date(datetime.now())
         return date_obj.strftime("%Y-%m-%d")
 
@@ -109,7 +116,34 @@ class ResumeHashEntry:
             return ''
         return self.genres_map[genre_input.lower()]
 
-class ResumeHashHelperCLI:  # Singleton
+class RHInterface:
+
+    db = JsonDbConn()
+    data = db.all_objects()
+
+    def create(self,
+               date: str=None,
+               genre: str=None,
+               notes: str=None):
+        rhe_obj = ResumeHashEntry(date=date, genre=genre, notes=notes)
+        print(f"{rhe_obj.date=}")
+        self.db.create(rhe_obj.id, rhe_obj.date, rhe_obj.genre, rhe_obj.notes)
+        return rhe_obj
+
+    def lookup_one(self, id: str):
+        data = self.db.lookup(id)
+        return self._instantiate_rhe_obj(data)
+
+    def _instantiate_rhe_obj(self, data: dict):
+        return ResumeHashEntry(data["id"],
+                               data["date"],
+                               data["genre"],
+                               data["notes"])
+
+
+class ResumeHashHelperCLI:
+
+    data_interface = RHInterface()
 
     usage_message = \
         """
@@ -126,8 +160,8 @@ class ResumeHashHelperCLI:  # Singleton
 
     parser.add_argument("-g")  # action defaults to "store", i.e. store the value
     parser.add_argument("-n")
-
-    # TODO implement the -fname flag in a public-GH safe way
+    parser.add_argument("-d", help="Optional hardcoded date")
+    parser.add_argument("-fn", action='store_true')
 
     args = parser.parse_args()
 
@@ -140,17 +174,43 @@ class ResumeHashHelperCLI:  # Singleton
         getattr(self, self.args.command)()  # Calling the method returned by getattr()
 
     def new(self) -> None:
-        """Creates a new RH and prints it to the command line."""
+        """Creates a new RH."""
         date = genre = notes = None
         if self.args.g is not None:
             genre = self.args.g
         if self.args.n is not None:
             notes = self.args.n
-        self._get_rhe_object(date=date, genre=genre, notes=notes)  # TODO prompt if  the genre isn't recognize, allow retry
-        print(self._rhe_obj.hash)
+        if self.args.d is not None:
+            date = self.args.d
+        rhe_obj = self.data_interface.create(date=date, genre=genre, notes=notes)
+        self._output_one(rhe_obj)
+
+    def _output_one(self, rhe_obj) -> None:
+        print(f"{self.args.fn=}")
+        if self.args.fn == True:
+            print(rhe_obj.filename)
+        else:
+            print(rhe_obj.id)
 
     def lookup(self):
         pass
+
+    def list(self):
+        id_column_format = "{:^10}"
+        date_column_format = "{:^10}"
+        genre_column_format = "{:^10}"
+        notes_column_format = "{:^10}"
+        column_formatting = f"{id_column_format}|{date_column_format}|{genre_column_format}|{notes_column_format}"
+        print(column_formatting.format("id", "date", "genre", "notes"))
+        for id, fields in self.data_interface.data.items():
+            date = genre = notes = ''
+            if fields["date"]:
+                date = fields["date"]
+            if fields["genre"]:
+                genre = fields["genre"]
+            if fields["notes"]:
+                notes = fields["notes"]
+            print(column_formatting.format(id, date, genre, notes))
 
     def _get_rhe_object(self,
                         hash: str=None,
