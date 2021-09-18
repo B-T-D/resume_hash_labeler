@@ -111,8 +111,6 @@ class ResumeHashEntry:
 
 class ResumeHashHelperCLI:  # Singleton
 
-    print(f"{sys.argv=}")
-
     usage_message = \
         """
         Usage message here
@@ -122,35 +120,21 @@ class ResumeHashHelperCLI:  # Singleton
         usage=usage_message,
     )
 
-
-
-    print(f"{parser=}")
-
-
     has_command = len(sys.argv) > 1 and not sys.argv[1].startswith("-")
     if has_command:parser.add_argument("command", default="new",
                         help="Optional subcommand to run")
-    # has_flags = (len(sys.argv) > 1 and sys.argv[1].startswith("-")) or (len(sys.argv) > 2)
-    #
-    # if has_command:
-    #     parser.add_argument('command', help="Optional subcommand to run")
-    # if has_flags:
-    #     if has_command:
-    #         args=[]
-    #     start = 1  # Index in sys.argv that would be the start of a slice containing all non-command args
-    #     if has_command:
-    #         start = 2
 
     parser.add_argument("-g")  # action defaults to "store", i.e. store the value
     parser.add_argument("-n")
 
-    args = parser.parse_args()  # TODO can always give a custom list of strings as arg to parse_args() if slicing sys.argv is too confusing
+    # TODO implement the -fname flag in a public-GH safe way
+
+    args = parser.parse_args()
 
     if not has_command:
         setattr(args, "command", "new")
 
-    def __init__(self, command_line_args: str=None):
-        print(f"{self.args=}")
+    def __init__(self):
         if not hasattr(self.args, "command"):
             raise ValueError("Unrecognized command")
         getattr(self, self.args.command)()  # Calling the method returned by getattr()
@@ -177,11 +161,9 @@ class ResumeHashHelperCLI:  # Singleton
         if hash:
             self._rhe_obj = ResumeHashEntry(hash)
         else:
-            print(f"calling RHE constructor with {genre=}")
             self._rhe_obj = ResumeHashEntry(date=date, genre=genre, notes=notes)
 
 def main():
-    print(f"{sys.argv=}")
     ResumeHashHelperCLI()
 
 if __name__ == "__main__":
